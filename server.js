@@ -4,6 +4,8 @@ var cookieParser = require('cookie-parser');
 var session = require('express-session');
 var mongoClient = require('mongodb').MongoClient;
 var assert = require('assert');
+var ObjectId = require('mongodb').ObjectID;
+var bodyParser = require('body-parser');
 
 // Connect to DB
 var url = 'mongodb://localhost:27017/test';
@@ -21,13 +23,59 @@ app.use(session({
 	saveUninitialized: true
 }));
 
+// Use body parser for request handling
+app.use(bodyParser.urlencoded({
+	extended: true
+}));
+
 // Routes
 app.get('/', function(req, res) {
 	res.send("Hello World. Session ID: " + req.sessionID);
 });
 
 app.get('/users', function(req, res) {
-	res.json([{ user: 'jerzy' }, { user: 'povilas' }]);
+	var allUsers = function(db, callback) {
+		var cursor = db.collection('players').find();
+		cursor.each(function(err, doc) {
+			assert.equal(err, null);
+			if (doc != null)
+				console.dir(doc);
+			else
+				callback();
+		});
+	};
+
+	mongoClient.connect(url, function(err, db) {
+		assert.equal(null, err);
+		allUsers(db, function() {
+			db.close();
+		});
+	});
+});
+
+app.post('/register', function(req, res) {
+	var newPlayer = function(db, callback) {
+		db.collection('players').insertOne({
+			'username' : req.body.username,
+			'email' : req.body.email,
+			'password' : req.body.password
+		}, function(err, result) {
+			assert.equal(err, null);
+			console.log('Inserted a new player account');
+			callback();
+		});
+	};
+
+	mongoClient.connect(url, function(err, db) {
+		assert.equal(null, err);
+		newPlayer(db, function() {
+			db.close();
+			res.json({
+				'success' : 1,
+				'message' : 'Registration successful'
+			});
+		});
+	});
 });
 
 // Begin listening for connections
