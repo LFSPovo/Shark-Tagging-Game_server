@@ -1,0 +1,14 @@
+[Unit]
+Description=Shark Tagging Game Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/echo "========= SYSTEMD: SERVER START ========="
+ExecStart=/usr/local/bin/node /home/sharks/server/server.js
+ExecStop=/bin/echo "========= SYSTEMD: SERVER STOP ========="
+ExecReload=/bin/echo "========= SYSTEMD: SERVER RELOAD ========="
+Restart=always
+
+[Install]
+WantedBy=default.target
