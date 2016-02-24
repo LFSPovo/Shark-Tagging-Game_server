@@ -20,8 +20,8 @@ var randomString = require("randomstring");
 var newPlayer = function(req) {
 	var hashPassword = bcrypt.hashSync(req.body.password, 8);
 	return {
-		username : req.body.username,
-		email : req.body.email,
+		username : req.body.username.toLowerCase(),
+		email : req.body.email.toLowerCase(),
 		password : hashPassword
 	};
 }
@@ -96,6 +96,9 @@ app.post('/register', function(req, res) {
 app.post('/login', function (req, res) {
 	var players = req.db.collection(PLAYER_COL);
 	var query = {};
+
+	// MongoDB queries are case-sensitive
+	req.body.username = req.body.username.toLowerCase();
 
 	// Check if username is an email address
 	if (emailValidator.validate(req.body.username))
