@@ -1,7 +1,6 @@
 var WEB_PORT = 	8080;
 var MONGO_URL =	'mongodb://localhost:27017/test';
 var PLAYER_COL = 'players';
-var LOGIN_TOKEN_COL = 'login_tokens';
 
 // NodeJS libraries
 var express = require('express');
@@ -22,7 +21,8 @@ var newPlayer = function(req) {
 	return {
 		username : req.body.username.toLowerCase(),
 		email : req.body.email.toLowerCase(),
-		password : hashPassword
+		password : hashPassword,
+		token : null
 	};
 }
 
@@ -44,7 +44,7 @@ app.use(expressMongoDb(MONGO_URL));
 
 // Routes
 app.get('/', function(req, res) {
-	res.send("Hello World. Session ID: " + req.sessionID);
+	res.send("STGServer is running");
 });
 
 app.get('/users', function(req, res) {
@@ -80,7 +80,8 @@ app.post('/register', function(req, res) {
 					success : 1,
 					message : 'Registration successful'
 				});
-				console.log('Inserted a new player account');
+				console.log('Inserted a new player account: ' + 
+					req.body.username);
 			}
 			else {
 				res.json({
@@ -115,14 +116,26 @@ app.post('/login', function (req, res) {
 		if (!login) {
 			if (doc) {
 				if (bcrypt.compareSync(req.body.password, doc.password)) {
+					// Player's account found.
 					login = true;
+					
+					// Generate a token key for later communication
 					var token = doc._id.valueOf() + randomString.generate(24);
-					res.json({
-						success : 1,
-						token : token,
-						message : 'Login successful',
-						username : doc.username
-					});
+					
+					// Update player's account with session token
+					players.updateOne({ _id : doc._id }, 
+						{ $set : { token : token } }, 
+						function(err, result) {
+							// Return login success and token
+							res.json({
+								success : 1,
+								token : token,
+								message : 'Login successful',
+								username : doc.username
+							});
+						}
+					);
+
 					console.log(doc.username + ' logged in');
 				}
 			}
