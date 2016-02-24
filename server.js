@@ -1,3 +1,4 @@
+var DEBUG = true;
 var WEB_PORT = 	8080;
 var MONGO_URL =	'mongodb://localhost:27017/test';
 var PLAYER_COL = 'players';
@@ -15,6 +16,7 @@ var bodyParser = require('body-parser');
 var bcrypt = require('bcrypt');
 var emailValidator = require("email-validator");
 var randomString = require("randomstring");
+var fs = require('fs');
 
 var newPlayer = function(req) {
 	var hashPassword = bcrypt.hashSync(req.body.password, 8);
@@ -44,10 +46,16 @@ app.use(expressMongoDb(MONGO_URL));
 
 // Routes
 app.get('/', function(req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+
 	res.send("STGServer is running");
 });
 
 app.get('/users', function(req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+
 	var players = req.db.collection(PLAYER_COL);
 	players.find().toArray(function(err, results) {
 		assert.equal(err, null);
@@ -56,11 +64,14 @@ app.get('/users', function(req, res) {
 });
 
 app.post('/register', function(req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+
 	var players = req.db.collection(PLAYER_COL);
 
 	// Check for existing player accounts with same username/email
 	players.findOne({
-		$or: [{ username : req.body.username },{ email : req.body.email }]
+		$or: [{ username : req.body.username }, { email : req.body.email }]
 	}, function(err, doc) {
 		if (doc) {
 			// Account exists
@@ -95,6 +106,9 @@ app.post('/register', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+
 	var players = req.db.collection(PLAYER_COL);
 	var query = {};
 
@@ -145,6 +159,18 @@ app.post('/login', function (req, res) {
 				message : 'Username or password incorrect'
 			});
 		}
+	});
+});
+
+app.post('/getimage', function(req, res) {
+	fs.readFile('/home/sharks/server/image.jpg', function(err, data) {
+		assert.equal(err, null);
+
+		var encodedData = data.toString('base64');
+		res.json({
+			id : 0,
+			image : encodedData
+		});
 	});
 });
 
