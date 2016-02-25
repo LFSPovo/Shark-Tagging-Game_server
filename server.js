@@ -162,17 +162,21 @@ app.post('/login', function (req, res) {
 	});
 });
 
-app.post('/getimage', function(req, res) {
-	fs.readFile('/home/sharks/server/image.jpg', function(err, data) {
+app.post('/reqimage', function(req, res) {
+
+});
+
+app.get('/getimage', function(req, res) {
+	var imgNum = Math.floor((Math.random() * 5) + 1);
+
+	fs.readFile('/home/sharks/server/test_images/image' + imgNum + '.jpg', function(err, data) {
 		assert.equal(err, null);
 
-		var encodedData = data.toString('base64');
-		res.json({
-			id : 0,
-			image : encodedData
-		});
+		res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+		res.end(data);
 	});
 });
+
 
 // Begin listening for connections
 app.listen(WEB_PORT, function() {
