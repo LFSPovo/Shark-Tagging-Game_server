@@ -56,9 +56,7 @@ app.use(session({
 }));
 
 // Use body parser for request handling
-app.use(bodyParser.urlencoded({
-	extended: true
-}));
+app.use(bodyParser.json());
 
 // Enable MongoDB for routes
 app.use(expressMongoDb(MONGO_URL));
