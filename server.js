@@ -1,7 +1,10 @@
-var DEBUG = true;
-var WEB_PORT = 	8080;
-var MONGO_URL =	'mongodb://localhost:27017/test';
-var PLAYER_COL = 'players';
+var DEBUG 		= true;
+var WEB_PORT 	= 8080;
+var MONGO_URL 	= 'mongodb://localhost:27017/test';
+var API_URL		= 'http://povilas.ovh:8080';
+
+// Collections
+var PLAYER_COL 	= 'players';
 
 // NodeJS libraries
 var express = require('express');
@@ -18,6 +21,11 @@ var emailValidator = require("email-validator");
 var randomString = require("randomstring");
 var fs = require('fs');
 
+// Response codes
+var RESPONSE_SUCCESS 	= 1;
+var RESPONSE_FAIL		= 0;
+var RESPONSE_BAD_TOKEN	= -1;
+
 var newPlayer = function(req) {
 	var hashPassword = bcrypt.hashSync(req.body.password, 8);
 	return {
@@ -26,6 +34,17 @@ var newPlayer = function(req) {
 		password : hashPassword,
 		token : null
 	};
+}
+
+var validToken = function(token) {
+	// Token length always 48 chars. 
+	// First 24 chars = player object id
+	// Second 24 chars = random session key
+	return token != null && token.length == 48;
+}
+
+var tokenToObjectId = function(token) {
+	return ObjectId(token.substring(0, 24));
 }
 
 // Enable session module and cookies
@@ -76,7 +95,7 @@ app.post('/register', function(req, res) {
 		if (doc) {
 			// Account exists
 			res.json({
-				success : 0,
+				success : RESPONSE_FAIL,
 				message : 'The username or email is already registered'
 			});
 			return;
@@ -88,7 +107,7 @@ app.post('/register', function(req, res) {
 			
 			if (!err) {
 				res.json({
-					success : 1,
+					success : RESPONSE_SUCCESS,
 					message : 'Registration successful'
 				});
 				console.log('Inserted a new player account: ' + 
@@ -96,7 +115,7 @@ app.post('/register', function(req, res) {
 			}
 			else {
 				res.json({
-					success : 0,
+					success : RESPONSE_FAIL,
 					message : 'Registration unsuccessful'
 				});
 				console.log('Failed to insert a new player account');
@@ -141,8 +160,8 @@ app.post('/login', function (req, res) {
 						{ $set : { token : token } }, 
 						function(err, result) {
 							// Return login success and token
-							res.json({
-								success : 1,
+							return res.json({
+								success : RESPONSE_SUCCESS,
 								token : token,
 								message : 'Login successful',
 								username : doc.username
@@ -154,8 +173,7 @@ app.post('/login', function (req, res) {
 				}
 			}
 			else res.json({
-				success : 0,
-				token : 0,
+				success : RESPONSE_FAIL,
 				message : 'Username or password incorrect'
 			});
 		}
@@ -163,13 +181,46 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/reqimage', function(req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
 
+	var players = req.db.collection(PLAYER_COL);
+	var token = req.body.token;
+
+	if (!validToken(token)) {
+		// No token or length is wrong. End request
+		return res.json({
+			success : RESPONSE_BAD_TOKEN,
+			message : 'Invalid session token'
+		});
+	}
+
+	var playerId = tokenToObjectId(token);
+
+	// Find player's account based on token
+	players.findOne({ _id : playerId, token : token }, function(err, doc) {
+		if (!doc) {
+			return res.json({
+				success : RESPONSE_BAD_TOKEN,
+				message : 'Invalid login'
+			});
+		}
+
+		// Return metadata for an image to player
+		var imgNum = Math.floor((Math.random() * 5) + 1);
+		res.json({
+			success : RESPONSE_SUCCESS,
+			imageId : imgNum,
+			url : API_URL + '/getimage?id=' + imgNum
+		});
+	});
 });
 
-app.get('/getimage', function(req, res) {
-	var imgNum = Math.floor((Math.random() * 5) + 1);
+app.get('/getimage/:id', function(req, res) {
+	if (DEBUG)
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
 
-	fs.readFile('/home/sharks/server/test_images/image' + imgNum + '.jpg', function(err, data) {
+	fs.readFile('/home/sharks/server/test_images/image' + req.params.id + '.jpg', function(err, data) {
 		assert.equal(err, null);
 
 		res.writeHead(200, { 'Content-Type': 'image/jpeg' });
@@ -177,8 +228,7 @@ app.get('/getimage', function(req, res) {
 	});
 });
 
-
 // Begin listening for connections
-app.listen(WEB_PORT, function() {
+app.listen(WEB_PORT, '0.0.0.0', function() {
 	console.log('Listening for HTTP requests on port ' + WEB_PORT);
 });
