@@ -61,18 +61,19 @@ app.use(bodyParser.json());
 // Enable MongoDB for routes
 app.use(expressMongoDb(MONGO_URL));
 
-// Routes
-app.get('/', function(req, res) {
+// Debug request logging
+app.use(function (req, res, next) {
 	if (DEBUG)
 		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+	next();
+});
 
+// Routes
+app.get('/', function(req, res) {
 	res.send("STGServer is running");
 });
 
 app.get('/users', function(req, res) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-
 	var players = req.db.collection(PLAYER_COL);
 	players.find().toArray(function(err, results) {
 		assert.equal(err, null);
@@ -81,9 +82,6 @@ app.get('/users', function(req, res) {
 });
 
 app.post('/register', function(req, res) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-
 	var players = req.db.collection(PLAYER_COL);
 
 	// Check for existing player accounts with same username/email
@@ -123,9 +121,6 @@ app.post('/register', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-
 	var players = req.db.collection(PLAYER_COL);
 	var query = {};
 
@@ -179,9 +174,6 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/reqimage', function(req, res) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-
 	var players = req.db.collection(PLAYER_COL);
 	var token = req.body.token;
 
@@ -215,9 +207,6 @@ app.post('/reqimage', function(req, res) {
 });
 
 app.get('/getimage/:id', function(req, res) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-
 	fs.readFile('/home/sharks/server/test_images/image' + req.params.id + '.jpg', function(err, data) {
 		assert.equal(err, null);
 
