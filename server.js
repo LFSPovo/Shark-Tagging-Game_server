@@ -211,7 +211,7 @@ app.post('/reqimage', function(req, res) {
 		res.json({
 			success : RESPONSE_SUCCESS,
 			imageId : imgNum,
-			url : API_URL + '/getimage?id=' + imgNum
+			url : API_URL + '/getimage/' + imgNum
 		});
 	});
 });
