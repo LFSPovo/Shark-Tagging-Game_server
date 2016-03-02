@@ -5,6 +5,7 @@ var API_URL		= 'http://povilas.ovh:8080';
 
 // Collections
 var PLAYER_COL 	= 'players';
+var TAG_COL		= 'tags';
 
 // NodeJS libraries
 var express = require('express');
@@ -25,6 +26,7 @@ var fs = require('fs');
 var RESPONSE_SUCCESS 	= 1;
 var RESPONSE_FAIL		= 0;
 var RESPONSE_BAD_TOKEN	= -1;
+var RESPONSE_BAD_IMAGE	= -2;
 
 var newPlayer = function(req) {
 	var hashPassword = bcrypt.hashSync(req.body.password, 8);
@@ -37,6 +39,14 @@ var newPlayer = function(req) {
 	};
 }
 
+var newTag = function(req, player) {
+	var tag = req.body;
+	tag.userId = player._id;
+	tag.imageId = ObjectId(tag.imageId);
+	tag.ip = req.ip;
+	return tag;
+}
+
 var validToken = function(token) {
 	// Token length always 48 chars. 
 	// First 24 chars = player object id
@@ -46,6 +56,17 @@ var validToken = function(token) {
 
 var tokenToObjectId = function(token) {
 	return ObjectId(token.substring(0, 24));
+}
+
+var getPlayerFromToken = function(token, db, callback) {
+	if (!validToken(token)) return null;
+
+	var players = db.collection(PLAYER_COL);
+	var playerId = tokenToObjectId(token);
+	var player = null;
+
+	// Find player's account based on token
+	players.findOne({ _id : playerId, token : token }, callback);
 }
 
 // Enable session module and cookies
@@ -77,6 +98,14 @@ app.get('/', function(req, res) {
 app.get('/users', function(req, res) {
 	var players = req.db.collection(PLAYER_COL);
 	players.find().toArray(function(err, results) {
+		assert.equal(err, null);
+		res.json(results);
+	});
+});
+
+app.get('/tags', function(req, res) {
+	var tags = req.db.collection(TAG_COL);
+	tags.find().toArray(function(err, results) {
 		assert.equal(err, null);
 		res.json(results);
 	});
@@ -184,22 +213,12 @@ app.post('/login', function (req, res) {
 	Image request. Returns metadata and URL for an image
 */
 app.post('/reqimage', function(req, res) {
-	var players = req.db.collection(PLAYER_COL);
 	var token = req.body.token;
 
-	if (!validToken(token)) {
-		// No token or length is wrong. End request
-		return res.json({
-			success : RESPONSE_BAD_TOKEN,
-			message : 'Invalid session token'
-		});
-	}
-
-	var playerId = tokenToObjectId(token);
-
-	// Find player's account based on token
-	players.findOne({ _id : playerId, token : token }, function(err, doc) {
-		if (!doc) {
+	// Load player from db based on session key
+	getPlayerFromToken(token, req.db, function(err, player) {
+		// Check if player was found
+		if (!player) {
 			return res.json({
 				success : RESPONSE_BAD_TOKEN,
 				message : 'Invalid login'
@@ -225,6 +244,41 @@ app.get('/getimage/:id', function(req, res) {
 
 		res.writeHead(200, { 'Content-Type': 'image/jpeg' });
 		res.end(data);
+	});
+});
+
+/*
+	Tag submission
+*/
+app.post('/submittags', function(req, res) {
+	var token = req.body.token;
+	var tags = req.db.collection(TAG_COL);
+
+	// Load player from db based on session key
+	getPlayerFromToken(token, req.db, function(err, player) {
+		// Check if player was found
+		if (!player) {
+			return res.json({
+				success : RESPONSE_BAD_TOKEN,
+				message : 'Invalid login'
+			});
+		}
+
+		// TODO: Check if image exists
+
+		// Insert tags
+		var tag = newTag(req, player);
+
+		tags.insertOne(tag, function(err, result) {
+			if (!result) return;
+
+			// TODO: Score calculation
+		});
+
+		res.json({
+			success : RESPONSE_SUCCESS,
+			message : 'Shark tags submitted'
+		});
 	});
 });
 
