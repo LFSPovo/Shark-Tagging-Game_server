@@ -32,7 +32,8 @@ var newPlayer = function(req) {
 		username : req.body.username.toLowerCase(),
 		email : req.body.email.toLowerCase(),
 		password : hashPassword,
-		token : null
+		token : null,
+		ip : req.ip
 	};
 }
 
@@ -81,6 +82,9 @@ app.get('/users', function(req, res) {
 	});
 });
 
+/*
+	Account registration
+*/
 app.post('/register', function(req, res) {
 	var players = req.db.collection(PLAYER_COL);
 
@@ -120,6 +124,9 @@ app.post('/register', function(req, res) {
 	});
 });
 
+/*
+	Login authentication. Returns a session token key for communication
+*/
 app.post('/login', function (req, res) {
 	var players = req.db.collection(PLAYER_COL);
 	var query = {};
@@ -173,6 +180,9 @@ app.post('/login', function (req, res) {
 	});
 });
 
+/*
+	Image request. Returns metadata and URL for an image
+*/
 app.post('/reqimage', function(req, res) {
 	var players = req.db.collection(PLAYER_COL);
 	var token = req.body.token;
@@ -206,6 +216,9 @@ app.post('/reqimage', function(req, res) {
 	});
 });
 
+/*
+	Returns a JPEG image using HTTP
+*/
 app.get('/getimage/:id', function(req, res) {
 	fs.readFile('/home/sharks/server/test_images/image' + req.params.id + '.jpg', function(err, data) {
 		assert.equal(err, null);
