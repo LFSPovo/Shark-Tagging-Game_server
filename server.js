@@ -40,11 +40,12 @@ var newPlayer = function(req) {
 }
 
 var newTag = function(req, player) {
-	var tag = req.body;
-	tag.userId = player._id;
-	tag.imageId = ObjectId(tag.imageId);
-	tag.ip = req.ip;
-	return tag;
+	return {
+		userId : player._id,
+		imageId : ObjectId(req.body.imageId),
+		ip : req.ip,
+		tags : req.body.tags
+	};
 }
 
 var validToken = function(token) {
