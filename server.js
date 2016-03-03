@@ -85,31 +85,33 @@ app.use(bodyParser.json());
 app.use(expressMongoDb(MONGO_URL));
 
 // Debug request logging
-app.use(function (req, res, next) {
-	if (DEBUG)
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-	next();
-});
+if (DEBUG) {
+	app.use(function (req, res, next) {
+		if (DEBUG)
+			console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+		next();
+	});
+
+	app.get('/users', function(req, res) {
+		var players = req.db.collection(PLAYER_COL);
+		players.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+
+	app.get('/tags', function(req, res) {
+		var tags = req.db.collection(TAG_COL);
+		tags.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+}
 
 // Routes
 app.get('/', function(req, res) {
 	res.send("STGServer is running");
-});
-
-app.get('/users', function(req, res) {
-	var players = req.db.collection(PLAYER_COL);
-	players.find().toArray(function(err, results) {
-		assert.equal(err, null);
-		res.json(results);
-	});
-});
-
-app.get('/tags', function(req, res) {
-	var tags = req.db.collection(TAG_COL);
-	tags.find().toArray(function(err, results) {
-		assert.equal(err, null);
-		res.json(results);
-	});
 });
 
 /*
@@ -230,7 +232,7 @@ app.post('/reqimage', function(req, res) {
 		var imgNum = Math.floor((Math.random() * 5) + 1);
 		res.json({
 			success : RESPONSE_SUCCESS,
-			imageId : imgNum,
+			imageId : "12345678901" + imgNum,
 			url : API_URL + '/getimage/' + imgNum
 		});
 	});
