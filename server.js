@@ -10,8 +10,6 @@ var TAG_COL		= 'tags';
 // NodeJS libraries
 var express = require('express');
 var app = express();
-var cookieParser = require('cookie-parser');
-var session = require('express-session');
 var mongoClient = require('mongodb').MongoClient;
 var expressMongoDb = require('express-mongo-db');
 var assert = require('assert');
@@ -69,14 +67,6 @@ var getPlayerFromToken = function(token, db, callback) {
 	// Find player's account based on token
 	players.findOne({ _id : playerId, token : token }, callback);
 }
-
-// Enable session module and cookies
-app.use(cookieParser());
-app.use(session({
-	secret: '82249F6BAD34493176943E8747CD9',
-	resave: false,
-	saveUninitialized: true
-}));
 
 // Use body parser for request handling
 app.use(bodyParser.json());
