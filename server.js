@@ -1,7 +1,3 @@
-// Collections
-var PLAYER_COL 	= 'players';
-var TAG_COL		= 'tags';
-
 // NodeJS libraries
 var express = require('express');
 var app = express();
@@ -16,6 +12,7 @@ var randomString = require("randomstring");
 var fs = require('fs');
 
 var config = require('./config.js');
+var collections = require('./collections.js');
 
 // Response codes
 var RESPONSE_SUCCESS 	= 1;
@@ -57,7 +54,7 @@ var tokenToObjectId = function(token) {
 var getPlayerFromToken = function(token, db, callback) {
 	if (!validToken(token)) return null;
 
-	var players = db.collection(PLAYER_COL);
+	var players = db.collection(collections.players);
 	var playerId = tokenToObjectId(token);
 	var player = null;
 
@@ -79,7 +76,7 @@ if (config.debug) {
 	});
 
 	app.get('/users', function(req, res) {
-		var players = req.db.collection(PLAYER_COL);
+		var players = req.db.collection(collections.players);
 		players.find().toArray(function(err, results) {
 			assert.equal(err, null);
 			res.json(results);
@@ -87,7 +84,7 @@ if (config.debug) {
 	});
 
 	app.get('/tags', function(req, res) {
-		var tags = req.db.collection(TAG_COL);
+		var tags = req.db.collection(collections.tags);
 		tags.find().toArray(function(err, results) {
 			assert.equal(err, null);
 			res.json(results);
@@ -104,7 +101,7 @@ app.get('/', function(req, res) {
 	Account registration
 */
 app.post('/register', function(req, res) {
-	var players = req.db.collection(PLAYER_COL);
+	var players = req.db.collection(collections.players);
 
 	// Check for existing player accounts with same username/email
 	players.findOne({
@@ -146,7 +143,7 @@ app.post('/register', function(req, res) {
 	Login authentication. Returns a session token key for communication
 */
 app.post('/login', function (req, res) {
-	var players = req.db.collection(PLAYER_COL);
+	var players = req.db.collection(collections.players);
 	var query = {};
 
 	// MongoDB queries are case-sensitive
@@ -241,7 +238,7 @@ app.get('/getimage/:id', function(req, res) {
 */
 app.post('/submittags', function(req, res) {
 	var token = req.body.token;
-	var tags = req.db.collection(TAG_COL);
+	var tags = req.db.collection(collections.tags);
 
 	// Load player from db based on session key
 	getPlayerFromToken(token, req.db, function(err, player) {
