@@ -10,6 +10,7 @@ var bcrypt = require('bcrypt');
 var emailValidator = require("email-validator");
 var randomString = require("randomstring");
 var fs = require('fs');
+var morgan = require('morgan');
 
 var config = require('./config.js');
 var collections = require('./collections.js');
@@ -69,28 +70,10 @@ app.use(bodyParser.json());
 app.use(expressMongoDb(config.mongo_url));
 
 // Debug request logging
-if (config.debug) {
-	app.use(function (req, res, next) {
-		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
-		next();
-	});
-
-	app.get('/users', function(req, res) {
-		var players = req.db.collection(collections.players);
-		players.find().toArray(function(err, results) {
-			assert.equal(err, null);
-			res.json(results);
-		});
-	});
-
-	app.get('/tags', function(req, res) {
-		var tags = req.db.collection(collections.tags);
-		tags.find().toArray(function(err, results) {
-			assert.equal(err, null);
-			res.json(results);
-		});
-	});
-}
+if (config.debug)
+	app.use(morgan('dev'));
+else
+	app.use(morgan('combined'));
 
 // Routes
 app.get('/', function(req, res) {

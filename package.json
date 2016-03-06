@@ -10,6 +10,7 @@
     "express-mongo-db": "^2.0.3",
     "mongodb": "^2.1.7",
     "mongoose": "^4.4.6",
+    "morgan": "^1.7.0",
     "randomstring": "^1.1.4"
   }
 }
