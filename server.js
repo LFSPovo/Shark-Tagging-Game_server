@@ -1,8 +1,3 @@
-var DEBUG 		= true;
-var WEB_PORT 	= 8080;
-var MONGO_URL 	= 'mongodb://localhost:27017/test';
-var API_URL		= 'http://povilas.ovh:8080';
-
 // Collections
 var PLAYER_COL 	= 'players';
 var TAG_COL		= 'tags';
@@ -19,6 +14,8 @@ var bcrypt = require('bcrypt');
 var emailValidator = require("email-validator");
 var randomString = require("randomstring");
 var fs = require('fs');
+
+var config = require('./config.js');
 
 // Response codes
 var RESPONSE_SUCCESS 	= 1;
@@ -72,13 +69,12 @@ var getPlayerFromToken = function(token, db, callback) {
 app.use(bodyParser.json());
 
 // Enable MongoDB for routes
-app.use(expressMongoDb(MONGO_URL));
+app.use(expressMongoDb(config.mongo_url));
 
 // Debug request logging
-if (DEBUG) {
+if (config.debug) {
 	app.use(function (req, res, next) {
-		if (DEBUG)
-			console.log(req.method + ' ' + req.path + ' - ' + req.ip);
+		console.log(req.method + ' ' + req.path + ' - ' + req.ip);
 		next();
 	});
 
@@ -223,7 +219,7 @@ app.post('/reqimage', function(req, res) {
 		res.json({
 			success : RESPONSE_SUCCESS,
 			imageId : "12345678901" + imgNum,
-			url : API_URL + '/getimage/' + imgNum
+			url : config.api_url + '/getimage/' + imgNum
 		});
 	});
 });
@@ -276,6 +272,6 @@ app.post('/submittags', function(req, res) {
 });
 
 // Begin listening for connections
-app.listen(WEB_PORT, '0.0.0.0', function() {
-	console.log('Listening for HTTP requests on port ' + WEB_PORT);
+app.listen(config.port, '0.0.0.0', function() {
+	console.log('Listening for HTTP requests on port ' + config.port);
 });
