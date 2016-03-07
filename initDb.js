@@ -1,6 +1,7 @@
 var MONGO_URL =	'mongodb://localhost:27017/test';
 
-var mongoClient = require('mongodb').MongoClient;
+var mongoClient 	= require('mongodb').MongoClient;
+var collections		= require('./collections.js');
 
 mongoClient.connect(MONGO_URL, function(err, db) {
 	if (err) throw err;
@@ -18,12 +19,14 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 	);*/
 
 	// tags
-	db.collection('tags').drop();
-	db.createCollection('tags');
-	db.collection('tags').createIndex(
+	db.collection(collections.tags).drop();
+	db.createCollection(collections.tags);
+	db.collection(collections.tagged_images).drop();
+	db.createCollection(collections.tagged_images);
+	db.collection(collections.tagged_images).createIndex(
 		{ 
 			'imageId' : 1,
-			'userId' : 1
+			'playerId' : 1
 		},
 		{ 'unique' : true },
 		function() {

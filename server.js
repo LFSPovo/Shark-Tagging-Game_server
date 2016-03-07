@@ -1,45 +1,33 @@
 // NodeJS libraries
-var express = require('express');
-var app = express();
-var mongoClient = require('mongodb').MongoClient;
-var expressMongoDb = require('express-mongo-db');
-var assert = require('assert');
-var ObjectId = require('mongodb').ObjectID;
-var bodyParser = require('body-parser');
-var bcrypt = require('bcrypt');
-var emailValidator = require("email-validator");
-var randomString = require("randomstring");
-var fs = require('fs');
-var morgan = require('morgan');
+var express 			= require('express');
+var app 				= express();
+var mongoClient 		= require('mongodb').MongoClient;
+var expressMongoDb 		= require('express-mongo-db');
+var assert 				= require('assert');
+var ObjectId 			= require('mongodb').ObjectID;
+var bodyParser 			= require('body-parser');
+var bcrypt 				= require('bcrypt');
+var emailValidator 		= require("email-validator");
+var randomString 		= require("randomstring");
+var fs 					= require('fs');
+var morgan 				= require('morgan');
+var mongoose 			= require('mongoose');
 
-var config = require('./config.js');
-var collections = require('./collections.js');
+// Enable float/double support for Mongoose
+require('mongoose-double')(mongoose);
+
+var config 				= require('./config.js');
+var collections 		= require('./collections.js');
+
+var Player 				= require('./models/player.js');
+var Tag 				= require('./models/tag.js');
+var TaggedImage  		= require('./models/tagged_image.js');
 
 // Response codes
 var RESPONSE_SUCCESS 	= 1;
 var RESPONSE_FAIL		= 0;
 var RESPONSE_BAD_TOKEN	= -1;
 var RESPONSE_BAD_IMAGE	= -2;
-
-var newPlayer = function(req) {
-	var hashPassword = bcrypt.hashSync(req.body.password, 8);
-	return {
-		username : req.body.username.toLowerCase(),
-		email : req.body.email.toLowerCase(),
-		password : hashPassword,
-		token : null,
-		ip : req.ip
-	};
-}
-
-var newTag = function(req, player) {
-	return {
-		userId : player._id,
-		imageId : ObjectId(req.body.imageId),
-		ip : req.ip,
-		tags : req.body.tags
-	};
-}
 
 var validToken = function(token) {
 	// Token length always 48 chars. 
@@ -63,6 +51,9 @@ var getPlayerFromToken = function(token, db, callback) {
 	players.findOne({ _id : playerId, token : token }, callback);
 }
 
+// Connect to configured database
+mongoose.connect(config.mongo_url);
+
 // Use body parser for request handling
 app.use(bodyParser.json());
 
@@ -70,8 +61,33 @@ app.use(bodyParser.json());
 app.use(expressMongoDb(config.mongo_url));
 
 // Debug request logging
-if (config.debug)
+if (config.debug) {
 	app.use(morgan('dev'));
+
+	app.get('/users', function(req, res) {
+		var players = req.db.collection(collections.players);
+		players.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+
+	app.get('/tags', function(req, res) {
+		var tags = req.db.collection(collections.tags);
+		tags.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+
+	app.get('/tagged_images', function(req, res) {
+		var tags = req.db.collection(collections.tagged_images);
+		tags.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+}
 else
 	app.use(morgan('combined'));
 
@@ -99,25 +115,27 @@ app.post('/register', function(req, res) {
 			return;
 		}
 
+		var newPlayer = new Player({
+			username: req.body.username.toLowerCase(),
+			email: req.body.email.toLowerCase(),
+			password: bcrypt.hashSync(req.body.password, 8),
+			ip: req.ip
+		});
+
 		// Create new account
-		players.insertOne(newPlayer(req), function(err, result) {
-			assert.equal(err, null);
-			
-			if (!err) {
-				res.json({
-					success : RESPONSE_SUCCESS,
-					message : 'Registration successful'
-				});
-				console.log('Inserted a new player account: ' + 
-					req.body.username);
-			}
-			else {
-				res.json({
+		newPlayer.save(function(err) {
+			if (err) {
+				return res.json({
 					success : RESPONSE_FAIL,
 					message : 'Registration unsuccessful'
 				});
-				console.log('Failed to insert a new player account');
 			}
+
+			res.json({
+				success : RESPONSE_SUCCESS,
+				message : 'Registration successful'
+			});
+			console.log('Inserted a new player account: ' + req.body.username);
 		});
 	});
 });
@@ -235,18 +253,38 @@ app.post('/submittags', function(req, res) {
 
 		// TODO: Check if image exists
 
-		// Insert tags
-		var tag = newTag(req, player);
-
-		tags.insertOne(tag, function(err, result) {
-			if (!result) return;
-
-			// TODO: Score calculation
+		// Tagged image metadata
+		var taggedImage = new TaggedImage({
+			playerId: player._id,
+			imageId: ObjectId(req.body.imageId),
+			ip: req.ip
 		});
 
-		res.json({
-			success : RESPONSE_SUCCESS,
-			message : 'Shark tags submitted'
+		taggedImage.save(function (err) {
+			if (err) {
+				return res.json({
+					success : RESPONSE_FAIL,
+					message : 'Shark tags submittion failed'
+				});
+			}
+
+			// Insert each of the tags
+			for (var i = 0; i < req.body.tags.length; i++) {
+				var tag = new Tag({
+					taggedImageId: taggedImage._id,
+					sharkId: req.body.tags[i].sharkId,
+					posX: req.body.tags[i].position.x,
+					posY: req.body.tags[i].position.y,
+					sizeX: req.body.tags[i].size.x,
+					sizeY: req.body.tags[i].size.y
+				});
+				tag.save();
+			}
+
+			res.json({
+				success : RESPONSE_SUCCESS,
+				message : 'Shark tags submitted'
+			});
 		});
 	});
 });
