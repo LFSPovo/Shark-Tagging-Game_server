@@ -7,5 +7,6 @@ module.exports = mongoose.model('Player', new Schema({
 	email: String,
 	password: String,
 	ip: String,
-	token: String
+	token: String,
+	tutorialFinished: Boolean
 }, { collection: collections.players }));

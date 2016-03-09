@@ -37,18 +37,9 @@ var validToken = function(token) {
 }
 
 var tokenToObjectId = function(token) {
+	if (!validToken(token))
+		return null;
 	return ObjectId(token.substring(0, 24));
-}
-
-var getPlayerFromToken = function(token, db, callback) {
-	if (!validToken(token)) return null;
-
-	var players = db.collection(collections.players);
-	var playerId = tokenToObjectId(token);
-	var player = null;
-
-	// Find player's account based on token
-	players.findOne({ _id : playerId, token : token }, callback);
 }
 
 // Connect to configured database
@@ -119,7 +110,9 @@ app.post('/register', function(req, res) {
 			username: req.body.username.toLowerCase(),
 			email: req.body.email.toLowerCase(),
 			password: bcrypt.hashSync(req.body.password, 8),
-			ip: req.ip
+			ip: req.ip,
+			tutorialFinished: false,
+			token: null
 		});
 
 		// Create new account
@@ -156,42 +149,37 @@ app.post('/login', function (req, res) {
 	else
 		query.username = req.body.username;	// Compare against account username
 
-	var cursor = players.find(query);
 	var login = false;
-	// Check all matching accounts for correct password
-	cursor.each(function(err, doc) {
-		assert.equal(err, null);
 
-		if (!login) {
-			if (doc) {
-				if (bcrypt.compareSync(req.body.password, doc.password)) {
-					// Player's account found.
-					login = true;
-					
-					// Generate a token key for later communication
-					var token = doc._id.valueOf() + randomString.generate(24);
-					
-					// Update player's account with session token
-					players.updateOne({ _id : doc._id }, 
-						{ $set : { token : token } }, 
-						function(err, result) {
-							// Return login success and token
-							return res.json({
-								success : RESPONSE_SUCCESS,
-								token : token,
-								message : 'Login successful',
-								username : doc.username
-							});
-						}
-					);
+	Player.find(query, function(err, players) {
+		for (var i = 0; i < players.length; i++) {
+			var player = players[i];
 
-					console.log(doc.username + ' logged in');
-				}
+			if (bcrypt.compareSync(req.body.password, player.password)) {
+				var login = true;
+
+				// Generate a token key for later communication
+				player.token = player._id.valueOf() + randomString.generate(24);
+
+				// Update player's account with session token
+				player.save(function(err) {
+					// Return login success and token
+					return res.json({
+						success: RESPONSE_SUCCESS,
+						token: player.token,
+						message: 'Login successful',
+						username: player.username,
+						tutorialFinished: player.tutorialFinished
+					});
+				});
 			}
-			else res.json({
+		}
+
+		if (err || !login) {
+			res.json({
 				success : RESPONSE_FAIL,
 				message : 'Username or password incorrect'
-			});
+			}); 
 		}
 	});
 });
@@ -203,7 +191,8 @@ app.post('/reqimage', function(req, res) {
 	var token = req.body.token;
 
 	// Load player from db based on session key
-	getPlayerFromToken(token, req.db, function(err, player) {
+	Player.findOne({ _id: tokenToObjectId(token), token: token }, 
+		function(err, player) {
 		// Check if player was found
 		if (!player) {
 			return res.json({
@@ -242,7 +231,8 @@ app.post('/submittags', function(req, res) {
 	var tags = req.db.collection(collections.tags);
 
 	// Load player from db based on session key
-	getPlayerFromToken(token, req.db, function(err, player) {
+	Player.findOne({ _id: tokenToObjectId(token), token: token }, 
+		function(err, player) {
 		// Check if player was found
 		if (!player) {
 			return res.json({
@@ -285,6 +275,34 @@ app.post('/submittags', function(req, res) {
 				success : RESPONSE_SUCCESS,
 				message : 'Shark tags submitted'
 			});
+		});
+	});
+});
+
+/*
+	Tutorial complete. Update player flag
+*/
+app.post('/finishtutorial', function(req, res) {
+	var token = req.body.token;
+
+	Player.findOne({
+		_id: tokenToObjectId(token),
+		token: token
+	}, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_BAD_TOKEN,
+				message: 'Invalid login'
+			});
+		}
+
+		// Update flag and save document
+		player.tutorialFinished = true;
+		player.save();
+
+		return res.json({
+			success: RESPONSE_SUCCESS,
+			message: 'Tutorial completed'
 		});
 	});
 });
