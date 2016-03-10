@@ -22,6 +22,8 @@ var collections 		= require('./collections.js');
 var Player 				= require('./models/player.js');
 var Tag 				= require('./models/tag.js');
 var TaggedImage  		= require('./models/tagged_image.js');
+var Image 				= require('./models/image.js');
+var LiveConfig 			= require('./models/live_config.js');
 
 // Response codes
 var RESPONSE_SUCCESS 	= 1;
@@ -78,6 +80,22 @@ if (config.debug) {
 			res.json(results);
 		});
 	});
+
+	app.get('/images', function(req, res) {
+		var images = req.db.collection(collections.images);
+		images.find().toArray(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
+
+	app.get('/liveconfig', function(req, res) {
+		var images = req.db.collection(collections.live_config);
+		images.findOne(function(err, results) {
+			assert.equal(err, null);
+			res.json(results);
+		});
+	});
 }
 else
 	app.use(morgan('combined'));
@@ -112,6 +130,7 @@ app.post('/register', function(req, res) {
 			password: bcrypt.hashSync(req.body.password, 8),
 			ip: req.ip,
 			tutorialFinished: false,
+			chunk: 1,
 			token: null
 		});
 
@@ -201,12 +220,34 @@ app.post('/reqimage', function(req, res) {
 			});
 		}
 
-		// Return metadata for an image to player
-		var imgNum = Math.floor((Math.random() * 5) + 1);
-		res.json({
-			success : RESPONSE_SUCCESS,
-			imageId : "12345678901" + imgNum,
-			url : config.api_url + '/getimage/' + imgNum
+		// Load live config data to find out which chunk the server is at
+		LiveConfig.findOne(function(err, liveConfig) {
+			var serverChunk = liveConfig.currentChunk;
+
+			// Player is way behind on chunks. 
+			// Bring them up to the current chunk
+			if (serverChunk > player.chunk) {
+				player.chunk = server.chunk;
+				player.save();
+			}
+
+			TaggedImage.find({ playerId: player._id }, { imageId: 1, _id: 0 },
+				function(err, taggedImages) {
+				var taggedIds = [];
+
+				// Create an array of image ID values ONLY
+				for (var i = 0; i < taggedImages.length; i++)
+					taggedIds.push(taggedImages[i].imageId);
+
+				// Return metadata for an image to player
+				Image.findOne({ chunk: player.chunk, _id: { $nin: taggedIds } }, function(err, image) {
+					res.json({
+						success: RESPONSE_SUCCESS,
+						imageId: image._id,
+						url : config.api_url + '/getimage/' + image._id
+					});
+				});
+			});
 		});
 	});
 });
@@ -215,11 +256,11 @@ app.post('/reqimage', function(req, res) {
 	Returns a JPEG image using HTTP
 */
 app.get('/getimage/:id', function(req, res) {
-	fs.readFile('/home/sharks/server/test_images/image' + req.params.id + '.jpg', function(err, data) {
-		assert.equal(err, null);
-
-		res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-		res.end(data);
+	Image.findOne({ _id: ObjectId(req.params.id) }, function(err, image) {
+		fs.readFile(config.image_path + image.folder + '/' + image.imageFile, function(err, data) {
+			res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+			res.end(data);
+		});
 	});
 });
 

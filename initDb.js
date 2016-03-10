@@ -21,6 +21,20 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 	// tags
 	db.collection(collections.tags).drop();
 	db.createCollection(collections.tags);
+
+	// images
+	db.collection(collections.images).drop();
+	db.createCollection(collections.images);
+
+	// live config
+	db.collection(collections.live_config).drop();
+	db.collection(collections.live_config).insert({
+		currentChunk: 1,
+		currentInsertChunk: 1,
+		currentInsertCount: 0
+	});
+
+	// tagged images
 	db.collection(collections.tagged_images).drop();
 	db.createCollection(collections.tagged_images);
 	db.collection(collections.tagged_images).createIndex(
@@ -28,9 +42,6 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 			'imageId' : 1,
 			'playerId' : 1
 		},
-		{ 'unique' : true },
-		function() {
-			db.close();
-		}
+		{ 'unique' : true }
 	);
 });
