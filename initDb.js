@@ -7,7 +7,7 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 	if (err) throw err;
 
 	// players
-	db.collection(collections.players).drop();
+	/*db.collection(collections.players).drop();
 	db.createCollection(collections.players);
 	db.collection(collections.players).createIndex(
 		{ 'username' : 1 }, 
@@ -16,7 +16,7 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 	db.collection(collections.players).createIndex(
 		{ 'email' : 1 }, 
 		{ 'unique' : true }
-	);
+	);*/
 
 	// tags
 	db.collection(collections.tags).drop();

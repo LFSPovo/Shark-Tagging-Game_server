@@ -30,6 +30,7 @@ var RESPONSE_SUCCESS 	= 1;
 var RESPONSE_FAIL		= 0;
 var RESPONSE_BAD_TOKEN	= -1;
 var RESPONSE_BAD_IMAGE	= -2;
+var RESPONSE_NO_IMAGES	= -3;
 
 var validToken = function(token) {
 	// Token length always 48 chars. 
@@ -42,6 +43,10 @@ var tokenToObjectId = function(token) {
 	if (!validToken(token))
 		return null;
 	return ObjectId(token.substring(0, 24));
+}
+
+var validObjectId = function(id) {
+	return id != null && id.length == 24;
 }
 
 // Connect to configured database
@@ -109,19 +114,27 @@ app.get('/', function(req, res) {
 	Account registration
 */
 app.post('/register', function(req, res) {
-	var players = req.db.collection(collections.players);
+	// Check for missing inputs
+	if (req.body.username == null ||
+		req.body.email == null ||
+		req.body.password == null) {
+		return res.json({
+			success: RESPONSE_FAIL,
+			message: 'Missing username, email or passwrd'
+		});
+	}
 
 	// Check for existing player accounts with same username/email
-	players.findOne({
-		$or: [{ username : req.body.username }, { email : req.body.email }]
-	}, function(err, doc) {
-		if (doc) {
+	Player.findOne({ 
+		$or: [ { username: req.body.username }, { email: req.body.email } ]},
+		{ _id: 1 }, 
+		function(err, player) {
+		if (player) {
 			// Account exists
-			res.json({
-				success : RESPONSE_FAIL,
-				message : 'The username or email is already registered'
+			return res.json({
+				success: RESPONSE_FAIL,
+				message: 'The username or email is already registered'
 			});
-			return;
 		}
 
 		var newPlayer = new Player({
@@ -138,14 +151,14 @@ app.post('/register', function(req, res) {
 		newPlayer.save(function(err) {
 			if (err) {
 				return res.json({
-					success : RESPONSE_FAIL,
-					message : 'Registration unsuccessful'
+					success: RESPONSE_FAIL,
+					message: 'Registration unsuccessful'
 				});
 			}
 
 			res.json({
-				success : RESPONSE_SUCCESS,
-				message : 'Registration successful'
+				success: RESPONSE_SUCCESS,
+				message: 'Registration successful'
 			});
 			console.log('Inserted a new player account: ' + req.body.username);
 		});
@@ -156,7 +169,14 @@ app.post('/register', function(req, res) {
 	Login authentication. Returns a session token key for communication
 */
 app.post('/login', function (req, res) {
-	var players = req.db.collection(collections.players);
+	// Check for missing inputs
+	if (req.body.username == null ||
+		req.body.password == null) {
+		return res.json({
+			success: RESPONSE_FAIL,
+			message: 'Missing username, email or passwrd'
+		});
+	}
 	var query = {};
 
 	// MongoDB queries are case-sensitive
@@ -170,6 +190,7 @@ app.post('/login', function (req, res) {
 
 	var login = false;
 
+	// Find players with matching username/email
 	Player.find(query, function(err, players) {
 		for (var i = 0; i < players.length; i++) {
 			var player = players[i];
@@ -231,6 +252,7 @@ app.post('/reqimage', function(req, res) {
 				player.save();
 			}
 
+			// Pull a list of image IDs the player has tagged
 			TaggedImage.find({ playerId: player._id }, { imageId: 1, _id: 0 },
 				function(err, taggedImages) {
 				var taggedIds = [];
@@ -239,8 +261,18 @@ app.post('/reqimage', function(req, res) {
 				for (var i = 0; i < taggedImages.length; i++)
 					taggedIds.push(taggedImages[i].imageId);
 
-				// Return metadata for an image to player
-				Image.findOne({ chunk: player.chunk, _id: { $nin: taggedIds } }, function(err, image) {
+				// Find the next unseen image for the player
+				Image.findOne({ chunk: player.chunk, _id: { $nin: taggedIds } }, 
+					function(err, image) {
+					if (!image) {
+						// No more images left
+						return res.json({
+							success: RESPONSE_NO_IMAGES,
+							message: 'There are no images to tag!'
+						});
+					}
+
+					// Return image metadata
 					res.json({
 						success: RESPONSE_SUCCESS,
 						imageId: image._id,
@@ -256,8 +288,24 @@ app.post('/reqimage', function(req, res) {
 	Returns a JPEG image using HTTP
 */
 app.get('/getimage/:id', function(req, res) {
+	// Check for ID validity
+	if (!validObjectId(req.params.id)) {
+		return res.json({
+			success: RESPONSE_FAIL,
+			message: 'Invalid image ID'
+		});
+	}
+
+	// Find image from supplied image ID
 	Image.findOne({ _id: ObjectId(req.params.id) }, function(err, image) {
-		fs.readFile(config.image_path + image.folder + '/' + image.imageFile, function(err, data) {
+		fs.readFile(config.image_path + image.folder + '/' + image.imageFile, 
+			function(err, data) {
+			if (err) {
+				return res.json({
+					success: RESPONSE_FAIL,
+					message: 'Unknown image ID'
+				});
+			}
 			res.writeHead(200, { 'Content-Type': 'image/jpeg' });
 			res.end(data);
 		});
@@ -269,52 +317,68 @@ app.get('/getimage/:id', function(req, res) {
 */
 app.post('/submittags', function(req, res) {
 	var token = req.body.token;
-	var tags = req.db.collection(collections.tags);
-
+	
 	// Load player from db based on session key
 	Player.findOne({ _id: tokenToObjectId(token), token: token }, 
 		function(err, player) {
 		// Check if player was found
 		if (!player) {
 			return res.json({
-				success : RESPONSE_BAD_TOKEN,
-				message : 'Invalid login'
+				success: RESPONSE_BAD_TOKEN,
+				message: 'Invalid login'
 			});
 		}
 
-		// TODO: Check if image exists
+		// Check for a valid image ID
+		if (!validObjectId(req.body.imageId)) {
+			return res.json({
+				success: RESPONSE_FAIL,
+				message: 'Invalid image ID'
+			});
+		}
 
-		// Tagged image metadata
-		var taggedImage = new TaggedImage({
-			playerId: player._id,
-			imageId: ObjectId(req.body.imageId),
-			ip: req.ip
-		});
-
-		taggedImage.save(function (err) {
-			if (err) {
+		// Check if image exists
+		Image.findOne({ _id: ObjectId(req.body.imageId) }, { _id: 1 }, 
+			function(err, image) {
+			if (!image) {
 				return res.json({
-					success : RESPONSE_FAIL,
-					message : 'Shark tags submittion failed'
+					success: RESPONSE_FAIL,
+					message: 'Unknown image ID'
 				});
 			}
 
-			// Insert each of the tags
-			for (var i = 0; i < req.body.tags.length; i++) {
-				var tag = new Tag({
-					taggedImageId: taggedImage._id,
-					sharkId: req.body.tags[i].sharkId,
-					posX: req.body.tags[i].position.x,
-					posY: req.body.tags[i].position.y,
-					sizeX: req.body.tags[i].size.x,
-					sizeY: req.body.tags[i].size.y
-				});
-				tag.save();
-			}
+			// Tagged image metadata
+			var taggedImage = new TaggedImage({
+				playerId: player._id,
+				imageId: ObjectId(req.body.imageId),
+				ip: req.ip
+			});
 
-			res.json({
-				success : RESPONSE_SUCCESS,
-				message : 'Shark tags submitted'
+			taggedImage.save(function (err) {
+				if (err) {
+					return res.json({
+						success : RESPONSE_FAIL,
+						message : 'Shark tags submittion failed'
+					});
+				}
+
+				// Insert each of the tags
+				for (var i = 0; i < req.body.tags.length; i++) {
+					var tag = new Tag({
+						taggedImageId: taggedImage._id,
+						sharkId: req.body.tags[i].sharkId,
+						posX: req.body.tags[i].position.x,
+						posY: req.body.tags[i].position.y,
+						sizeX: req.body.tags[i].size.x,
+						sizeY: req.body.tags[i].size.y
+					});
+					tag.save();
+				}
+
+				res.json({
+					success : RESPONSE_SUCCESS,
+					message : 'Shark tags submitted'
+				});
 			});
 		});
 	});
@@ -344,6 +408,57 @@ app.post('/finishtutorial', function(req, res) {
 		return res.json({
 			success: RESPONSE_SUCCESS,
 			message: 'Tutorial completed'
+		});
+	});
+});
+
+/*
+	Autologin token check
+*/
+app.post('/autologin', function(req, res) {
+	var token = req.body.token;
+
+	Player.findOne({
+		_id: tokenToObjectId(token),
+		token: token
+	}, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_BAD_TOKEN,
+				message: 'Invalid login'
+			});
+		}
+
+		return res.json({
+			success: RESPONSE_SUCCESS,
+			message: 'Login successful'
+		});
+	});
+});
+
+/*
+	Logout request
+*/
+app.post('/logout', function(req, res) {
+	var token = req.body.token;
+
+	Player.findOne({
+		_id: tokenToObjectId(token),
+		token: token
+	}, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_BAD_TOKEN,
+				message: 'Invalid login'
+			});
+		}
+
+		player.token = null;
+		player.save(function(err) {
+			return res.json({
+				success: RESPONSE_SUCCESS,
+				message: 'Login successful'
+			});
 		});
 	});
 });
