@@ -2,7 +2,6 @@
 var express 			= require('express');
 var app 				= express();
 var mongoClient 		= require('mongodb').MongoClient;
-var expressMongoDb 		= require('express-mongo-db');
 var assert 				= require('assert');
 var ObjectId 			= require('mongodb').ObjectID;
 var bodyParser 			= require('body-parser');
@@ -192,7 +191,7 @@ app.post('/login', function (req, res) {
 
 	// Find players with matching username/email
 	Player.find(query, function(err, players) {
-		for (var i = 0; i < players.length; i++) {
+		for (var i = 0; iplayers.length; i++) {
 			var player = players[i];
 
 			if (bcrypt.compareSync(req.body.password, player.password)) {
@@ -317,7 +316,7 @@ app.get('/getimage/:id', function(req, res) {
 */
 app.post('/submittags', function(req, res) {
 	var token = req.body.token;
-	
+
 	// Load player from db based on session key
 	Player.findOne({ _id: tokenToObjectId(token), token: token }, 
 		function(err, player) {
@@ -449,7 +448,7 @@ app.post('/logout', function(req, res) {
 		if (!player) {
 			return res.json({
 				success: RESPONSE_BAD_TOKEN,
-				message: 'Invalid login'
+				message: 'Invalid token'
 			});
 		}
 
@@ -457,7 +456,7 @@ app.post('/logout', function(req, res) {
 		player.save(function(err) {
 			return res.json({
 				success: RESPONSE_SUCCESS,
-				message: 'Login successful'
+				message: 'Logout successful'
 			});
 		});
 	});

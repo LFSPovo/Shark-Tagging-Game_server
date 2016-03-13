@@ -1,0 +1,1 @@
+Postman tests can be run using the Postman extension for Chrome
