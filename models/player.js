@@ -9,5 +9,6 @@ module.exports = mongoose.model('Player', new Schema({
 	ip: String,
 	token: String,
 	tutorialFinished: Boolean,
-	chunk: Number
+	chunk: Number,
+	recoveryCode: String
 }, { collection: collections.players }));

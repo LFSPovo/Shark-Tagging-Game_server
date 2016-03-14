@@ -11,6 +11,7 @@ var randomString 		= require("randomstring");
 var fs 					= require('fs');
 var morgan 				= require('morgan');
 var mongoose 			= require('mongoose');
+var nodemailer			= require('nodemailer');
 
 // Enable float/double support for Mongoose
 require('mongoose-double')(mongoose);
@@ -54,49 +55,36 @@ mongoose.connect(config.mongo_url);
 // Use body parser for request handling
 app.use(bodyParser.json());
 
-// Enable MongoDB for routes
-app.use(expressMongoDb(config.mongo_url));
-
 // Debug request logging
 if (config.debug) {
 	app.use(morgan('dev'));
 
 	app.get('/users', function(req, res) {
-		var players = req.db.collection(collections.players);
-		players.find().toArray(function(err, results) {
-			assert.equal(err, null);
+		Player.find(function(err, results) {
 			res.json(results);
 		});
 	});
 
 	app.get('/tags', function(req, res) {
-		var tags = req.db.collection(collections.tags);
-		tags.find().toArray(function(err, results) {
-			assert.equal(err, null);
+		Tag.find(function(err, results) {
 			res.json(results);
 		});
 	});
 
 	app.get('/tagged_images', function(req, res) {
-		var tags = req.db.collection(collections.tagged_images);
-		tags.find().toArray(function(err, results) {
-			assert.equal(err, null);
+		TaggedImage.find(function(err, results) {
 			res.json(results);
 		});
 	});
 
 	app.get('/images', function(req, res) {
-		var images = req.db.collection(collections.images);
-		images.find().toArray(function(err, results) {
-			assert.equal(err, null);
+		Image.find(function(err, results) {
 			res.json(results);
 		});
 	});
 
 	app.get('/liveconfig', function(req, res) {
-		var images = req.db.collection(collections.live_config);
-		images.findOne(function(err, results) {
-			assert.equal(err, null);
+		LiveConfig.find(function(err, results) {
 			res.json(results);
 		});
 	});
@@ -173,7 +161,7 @@ app.post('/login', function (req, res) {
 		req.body.password == null) {
 		return res.json({
 			success: RESPONSE_FAIL,
-			message: 'Missing username, email or passwrd'
+			message: 'Missing username, email or password'
 		});
 	}
 	var query = {};
@@ -353,6 +341,9 @@ app.post('/submittags', function(req, res) {
 				ip: req.ip
 			});
 
+			// TODO: Check if all images in current chunk have 5 tags min
+			// TODO: Increase player chunk if needed
+
 			taggedImage.save(function (err) {
 				if (err) {
 					return res.json({
@@ -457,6 +448,109 @@ app.post('/logout', function(req, res) {
 			return res.json({
 				success: RESPONSE_SUCCESS,
 				message: 'Logout successful'
+			});
+		});
+	});
+});
+
+/*
+	Recover password
+*/
+app.post('/recoverpassword', function(req, res) {
+	// Check for missing inputs
+	if (req.body.username == null) {
+		return res.json({
+			success: RESPONSE_FAIL,
+			message: 'Missing username or email'
+		});
+	}
+	var query = {};
+
+	// MongoDB queries are case-sensitive
+	req.body.username = req.body.username.toLowerCase();
+
+	// Check if username is an email address
+	if (emailValidator.validate(req.body.username))
+		query.email = req.body.username; // Compare against account email
+	else
+		query.username = req.body.username;	// Compare against account username
+
+	// Locate account in the database
+	Player.findOne(query, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_FAIL,
+				message: 'Player account not found'
+			});
+		}
+
+		// Generate a random recovery string
+		player.recoveryCode = randomString.generate(6);
+
+		// Update DB entry with recovery code
+		player.save(function(err) {
+			var transporter = nodemailer.createTransport();
+			var mailOptions = {
+				from: '"' + config.game_name + '" <no-reply@' + req.hostname 
+					+'>',
+				to: player.email,
+				subject: 'Password recovery',
+				html: '<p>Hello, ' + player.username + '</p><br>'
+					+ '<p>Thank you for requesting to reset your password. '
+					+ 'Your password recovery code is <b>' + player.recoveryCode
+					+ '</b></p><p>Request IP: <b>' + req.ip + '</b></p>'
+					+ '<p>' + config.game_name + '</p>'
+
+			};
+
+			// Send recovery code email
+			transporter.sendMail(mailOptions, function(err, info) {
+				if (err) console.log(err);
+			});
+
+			res.json({
+				success: RESPONSE_SUCCESS,
+				username: player.username,
+				message: 'Details have been sent to\n' + player.email
+			});
+		});
+	});
+});
+
+/*
+	Step 2 of password recovery. Password change
+*/
+app.post('/recoverpasswordchange', function(req, res) {
+	// Check for missing inputs
+	if (req.body.username == null ||
+		req.body.password == null ||
+		req.body.code == null) {
+		return res.json({
+			success: RESPONSE_FAIL,
+			message: 'Missing username, password or recovery code'
+		});
+	}
+
+	// Find player with recovery code
+	Player.findOne({
+		username: req.body.username,
+		recoveryCode: req.body.code
+	}, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_FAIL,
+				message: 'Player account not found'
+			});
+		}
+
+		// Update new details
+		player.password = bcrypt.hashSync(req.body.password, 8);
+		player.recoveryCode = null;
+
+		player.save(function(err) {
+			res.json({
+				success: RESPONSE_SUCCESS,
+				message: 'Password changed successfully. You may login now'
 			});
 		});
 	});
