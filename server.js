@@ -55,10 +55,11 @@ mongoose.connect(config.mongo_url);
 // Use body parser for request handling
 app.use(bodyParser.json());
 
+// Enable request logging
+app.use(morgan('dev'));
+
 // Debug request logging
 if (config.debug) {
-	app.use(morgan('dev'));
-
 	app.get('/users', function(req, res) {
 		Player.find(function(err, results) {
 			res.json(results);
@@ -131,7 +132,8 @@ app.post('/register', function(req, res) {
 			ip: req.ip,
 			tutorialFinished: false,
 			chunk: 1,
-			token: null
+			token: null,
+			recoveryCode: null
 		});
 
 		// Create new account
@@ -179,7 +181,9 @@ app.post('/login', function (req, res) {
 
 	// Find players with matching username/email
 	Player.find(query, function(err, players) {
-		for (var i = 0; iplayers.length; i++) {
+		for (var i = 0; players.length; i++) {
+			if (!players[i]) break;
+
 			var player = players[i];
 
 			if (bcrypt.compareSync(req.body.password, player.password)) {
@@ -342,7 +346,6 @@ app.post('/submittags', function(req, res) {
 			});
 
 			// TODO: Check if all images in current chunk have 5 tags min
-			// TODO: Increase player chunk if needed
 
 			taggedImage.save(function (err) {
 				if (err) {
@@ -351,6 +354,14 @@ app.post('/submittags', function(req, res) {
 						message : 'Shark tags submittion failed'
 					});
 				}
+
+				// Recalculate player chunk number
+				TaggedImage.count({
+					playerId: player._id,
+				}, function(err, count) {
+					player.chunk = parseInt(count / config.chunk_size) + 1;
+					player.save();
+				});
 
 				// Insert each of the tags
 				for (var i = 0; i < req.body.tags.length; i++) {

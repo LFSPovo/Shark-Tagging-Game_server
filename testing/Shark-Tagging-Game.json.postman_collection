@@ -10,7 +10,9 @@
 		"4bc90a23-01e3-078b-403f-57254192d3ec",
 		"ff8bb85d-4376-c768-a871-abce94db15c2",
 		"1d0d56fd-6b86-c9ec-ce93-acb796403bcd",
-		"54b87cc5-71f4-cb94-ab5b-cf17e36bbe20"
+		"54b87cc5-71f4-cb94-ab5b-cf17e36bbe20",
+		"e1459828-9d8e-bf44-6cf9-e66af5f0494d",
+		"29f6cb10-3e07-f40d-5ca6-fc0f59211d1d"
 	],
 	"folders": [],
 	"timestamp": 1457222712899,
@@ -28,15 +30,15 @@
 			"data": [],
 			"dataMode": "raw",
 			"version": 2,
-			"tests": "var data = JSON.parse(responseBody);\n\ntests[\"Response status is 200\"] = responseCode.code === 200;\ntests[\"Response time is less than 200ms\"] = responseTime < 200;\ntests[\"Response \\\"success\\\" is 0\"] = data.success === 1;\ntests[\"Response has \\\"message\\\"\"] = data.message !== null;\n\npostman.setGlobalVariable(\"username\", \"testplayer1\");\npostman.setGlobalVariable(\"password\", \"000000\");",
+			"tests": "var data = JSON.parse(responseBody);\n\ntests[\"Response status is 200\"] = responseCode.code === 200;\ntests[\"Response time is less than 200ms\"] = responseTime < 200;\ntests[\"Response \\\"success\\\" is 0\"] = data.success === 1;\ntests[\"Response has \\\"message\\\"\"] = data.message !== null;\n\npostman.setGlobalVariable(\"username\", \"testplayer2\");\npostman.setGlobalVariable(\"password\", \"000000\");",
 			"currentHelper": "normal",
 			"helperAttributes": {},
-			"time": 1457890015193,
+			"time": 1457952863421,
 			"name": "/Register",
 			"description": "",
 			"collectionId": "d5b8db05-31bb-f096-7e27-d4ed28f49f67",
 			"responses": [],
-			"rawModeData": "{\n    \"username\": \"testplayer1\",\n    \"email\": \"testPlaye1r@gmail.com\",\n    \"password\": \"000000\"\n}"
+			"rawModeData": "{\n    \"username\": \"testplayer2\",\n    \"email\": \"testPlaye2r@gmail.com\",\n    \"password\": \"000000\"\n}"
 		},
 		{
 			"id": "1d0d56fd-6b86-c9ec-ce93-acb796403bcd",
@@ -56,6 +58,25 @@
 			"collectionId": "d5b8db05-31bb-f096-7e27-d4ed28f49f67",
 			"responses": [],
 			"rawModeData": "{\n    \"token\":\"{{token}}\"\n}"
+		},
+		{
+			"id": "29f6cb10-3e07-f40d-5ca6-fc0f59211d1d",
+			"headers": "Content-Type: application/json\n",
+			"url": "http://povilas.ovh:8080/recoverpasswordchange",
+			"preRequestScript": null,
+			"pathVariables": {},
+			"method": "POST",
+			"data": [],
+			"dataMode": "raw",
+			"tests": "var data = JSON.parse(responseBody);\n\ntests[\"Response status is 200\"] = responseCode.code === 200;\ntests[\"Response time is less than 200ms\"] = responseTime < 200;\ntests[\"Response \\\"success\\\" is 1\"] = data.success === 1;\ntests[\"Response \\\"message\\\" is not empty\"] = data.message.length > 0;",
+			"currentHelper": "normal",
+			"helperAttributes": {},
+			"time": 1457957594464,
+			"name": "/RecoverPasswordChange",
+			"description": "",
+			"collectionId": "d5b8db05-31bb-f096-7e27-d4ed28f49f67",
+			"responses": [],
+			"rawModeData": "{\n    \"username\":\"povilas06\",\n    \"code\":\"pGLzvz\",\n    \"password\":\"123456\"\n}"
 		},
 		{
 			"id": "4bc90a23-01e3-078b-403f-57254192d3ec",
@@ -153,6 +174,26 @@
 			"collectionId": "d5b8db05-31bb-f096-7e27-d4ed28f49f67",
 			"responses": [],
 			"rawModeData": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+		},
+		{
+			"id": "e1459828-9d8e-bf44-6cf9-e66af5f0494d",
+			"headers": "Content-Type: application/json\n",
+			"url": "http://povilas.ovh:8080/recoverpassword",
+			"preRequestScript": null,
+			"pathVariables": {},
+			"method": "POST",
+			"data": [],
+			"dataMode": "raw",
+			"version": 2,
+			"tests": "var data = JSON.parse(responseBody);\n\ntests[\"Response status is 200\"] = responseCode.code === 200;\ntests[\"Response time is less than 200ms\"] = responseTime < 200;\ntests[\"Response \\\"success\\\" is 1\"] = data.success === 1;\ntests[\"Response \\\"message\\\" is not empty\"] = data.message.length > 0;\ntests[\"Response \\\"username\\\" is not empty\"] = data.username.length > 0;",
+			"currentHelper": "normal",
+			"helperAttributes": {},
+			"time": 1457956937650,
+			"name": "/RecoverPassword",
+			"description": "",
+			"collectionId": "d5b8db05-31bb-f096-7e27-d4ed28f49f67",
+			"responses": [],
+			"rawModeData": "{\n    \"username\":\"povilas06\"\n}"
 		},
 		{
 			"id": "ff8bb85d-4376-c768-a871-abce94db15c2",
