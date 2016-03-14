@@ -133,7 +133,8 @@ app.post('/register', function(req, res) {
 			tutorialFinished: false,
 			chunk: 1,
 			token: null,
-			recoveryCode: null
+			recoveryCode: null,
+			activationCode: randomString.generate(6)
 		});
 
 		// Create new account
@@ -145,9 +146,31 @@ app.post('/register', function(req, res) {
 				});
 			}
 
+			// Email activation link
+			var transporter = nodemailer.createTransport();
+			var mailOptions = {
+				from: '"' + config.game_name + '" <no-reply@' + req.hostname 
+					+'>',
+				to: newPlayer.email,
+				subject: 'Account activation',
+				html: '<p>Hello, ' + newPlayer.username + '</p><br>'
+					+ '<p>Thank you for registering a player account. '
+					+ 'Please click the activation link to active your account: <b>' 
+					+ config.api_url + '/activate/' + newPlayer.username + '/' 
+					+ newPlayer.activationCode
+					+ '</b><br><p>' + config.game_name + '</p>'
+
+			};
+
+			// Send recovery code email
+			transporter.sendMail(mailOptions, function(err, info) {
+				if (err) console.log(err);
+			});
+
 			res.json({
 				success: RESPONSE_SUCCESS,
-				message: 'Registration successful'
+				message: 'Registration successful\n' +
+					'Please check your email to activate your account'
 			});
 			console.log('Inserted a new player account: ' + req.body.username);
 		});
@@ -188,6 +211,13 @@ app.post('/login', function (req, res) {
 
 			if (bcrypt.compareSync(req.body.password, player.password)) {
 				var login = true;
+
+				if (player.activationCode != null) {
+					return res.json({
+						success: RESPONSE_FAIL,
+						message: 'Account not activated. Please check your email'
+					});
+				}
 
 				// Generate a token key for later communication
 				player.token = player._id.valueOf() + randomString.generate(24);
@@ -563,6 +593,32 @@ app.post('/recoverpasswordchange', function(req, res) {
 				success: RESPONSE_SUCCESS,
 				message: 'Password changed successfully. You may login now'
 			});
+		});
+	});
+});
+
+/*
+	Activates a player account
+*/
+app.get('/activate/:username/:code', function(req, res) {
+	// Check for ID validity
+	if (req.params.username == null ||
+		req.params.code == null) {
+		return res.send("Invalid username or activation code");
+	}
+
+	Player.findOne({
+		username: req.params.username,
+		activationCode: req.params.code
+	}, function(err, player) {
+		if (!player) {
+			return res.send("Invalid username or activation code");
+		}
+
+		player.activationCode = null;
+		player.save(function(err) {
+			res.send('Account activated!' +
+				' You may now log in with your username and password');
 		});
 	});
 });
