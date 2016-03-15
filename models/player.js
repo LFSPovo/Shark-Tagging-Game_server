@@ -11,5 +11,6 @@ module.exports = mongoose.model('Player', new Schema({
 	tutorialFinished: Boolean,
 	chunk: Number,
 	recoveryCode: String,
-	activationCode: String
+	activationCode: String,
+	score: Number
 }, { collection: collections.players }));

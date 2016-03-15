@@ -125,16 +125,24 @@ app.post('/register', function(req, res) {
 			});
 		}
 
+		if (!emailValidator.validate(req.body.email)) {
+			return res.json({
+				success: RESPONSE_FAIL,
+				message: 'Invalid email address'
+			});
+		}
+
 		var newPlayer = new Player({
-			username: req.body.username.toLowerCase(),
-			email: req.body.email.toLowerCase(),
+			username: req.body.username,
+			email: req.body.email,
 			password: bcrypt.hashSync(req.body.password, 8),
 			ip: req.ip,
 			tutorialFinished: false,
 			chunk: 1,
 			token: null,
 			recoveryCode: null,
-			activationCode: randomString.generate(6)
+			activationCode: randomString.generate(6),
+			score: 0
 		});
 
 		// Create new account
@@ -192,13 +200,13 @@ app.post('/login', function (req, res) {
 	var query = {};
 
 	// MongoDB queries are case-sensitive
-	req.body.username = req.body.username.toLowerCase();
+	//req.body.username = req.body.username.toLowerCase();
 
 	// Check if username is an email address
 	if (emailValidator.validate(req.body.username))
-		query.email = req.body.username; // Compare against account email
+		query.email = new RegExp(req.body.username, 'i');
 	else
-		query.username = req.body.username;	// Compare against account username
+		query.username = new RegExp(req.body.username, 'i');
 
 	var login = false;
 
@@ -230,7 +238,8 @@ app.post('/login', function (req, res) {
 						token: player.token,
 						message: 'Login successful',
 						username: player.username,
-						tutorialFinished: player.tutorialFinished
+						tutorialFinished: player.tutorialFinished,
+						score: player.score
 					});
 				});
 			}
@@ -377,6 +386,12 @@ app.post('/submittags', function(req, res) {
 
 			// TODO: Check if all images in current chunk have 5 tags min
 
+			// Score calculation
+			if (req.body.tags.length > 0) {
+				player.score += config.points_per_image;
+				player.save();
+			}
+
 			taggedImage.save(function (err) {
 				if (err) {
 					return res.json({
@@ -407,8 +422,9 @@ app.post('/submittags', function(req, res) {
 				}
 
 				res.json({
-					success : RESPONSE_SUCCESS,
-					message : 'Shark tags submitted'
+					success: RESPONSE_SUCCESS,
+					message: 'Shark tags submitted',
+					score: player.score
 				});
 			});
 		});
@@ -462,7 +478,8 @@ app.post('/autologin', function(req, res) {
 
 		return res.json({
 			success: RESPONSE_SUCCESS,
-			message: 'Login successful'
+			message: 'Login successful',
+			score: player.score
 		});
 	});
 });
@@ -508,13 +525,13 @@ app.post('/recoverpassword', function(req, res) {
 	var query = {};
 
 	// MongoDB queries are case-sensitive
-	req.body.username = req.body.username.toLowerCase();
+	//req.body.username = req.body.username.toLowerCase();
 
 	// Check if username is an email address
 	if (emailValidator.validate(req.body.username))
-		query.email = req.body.username; // Compare against account email
+		query.email = new RegExp(req.body.username, 'i');
 	else
-		query.username = req.body.username;	// Compare against account username
+		query.username = new RegExp(req.body.username, 'i');
 
 	// Locate account in the database
 	Player.findOne(query, function(err, player) {
@@ -619,6 +636,37 @@ app.get('/activate/:username/:code', function(req, res) {
 		player.save(function(err) {
 			res.send('Account activated!' +
 				' You may now log in with your username and password');
+		});
+	});
+});
+
+/*
+	Returns the leaderboard
+*/
+app.post('/leaderboard', function(req,res) {
+	var token = req.body.token;
+
+	Player.findOne({
+		_id: tokenToObjectId(token),
+		token: token
+	}, function(err, player) {
+		if (!player) {
+			return res.json({
+				success: RESPONSE_BAD_TOKEN,
+				message: 'Invalid login'
+			});
+		}
+
+		Player.find({}, 
+			{ _id: 0, username: 1, score: 1 }).sort(
+			{ score : 'desc' }).limit(20).exec(function(err, leaderBoard) {
+
+
+
+			res.json({
+				success: 1,
+				leaderboard: leaderBoard
+			});
 		});
 	});
 });
