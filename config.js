@@ -6,5 +6,6 @@ module.exports = {
 	image_path: '/home/sharks/server/images/',
 	chunk_size: 100,
 	game_name: 'Shark Tagging Game',
-	points_per_image: 1
+	points_per_image: 1,
+	min_tagged_images: 2
 };

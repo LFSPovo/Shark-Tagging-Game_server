@@ -12,6 +12,7 @@ var fs 					= require('fs');
 var morgan 				= require('morgan');
 var mongoose 			= require('mongoose');
 var nodemailer			= require('nodemailer');
+var Vector				= require('victor');
 
 // Enable float/double support for Mongoose
 require('mongoose-double')(mongoose);
@@ -45,8 +46,118 @@ var tokenToObjectId = function(token) {
 	return ObjectId(token.substring(0, 24));
 }
 
+var tagsOverlap = function(tagA, tagB) {
+	var T = 50;
+	return tagA.pos.distance(tagB.pos) <= T && 
+		(tagA.pos.add(tagA.size)).distance(tagB.pos.add(tagB.size)) <= T;
+}
+
 var validObjectId = function(id) {
 	return id != null && id.length == 24;
+}
+
+var searchTagOverlap = function(joinedTags) {
+	var overlaps = [];
+	var oIdx = 0;
+
+	for (var i = 0; i < joinedTags.length; i++) {
+		var curTag = joinedTags[i];
+		var found = false;
+
+		for (var k = i + 1; k < joinedTags.length; k++) {
+			if (tagsOverlap(curTag, joinedTags[k])) {
+				console.log("tags overlap " + i + " " + k);
+				
+				if (overlaps[oIdx] == null)
+					overlaps[oIdx] = [ curTag ];
+
+				overlaps[oIdx].push(joinedTags[k]);
+				found = true;
+			}
+			else console.log("tags don't overlap " + i + " " + k);
+		}
+
+		if (found) {
+			oIdx++;
+			found = false;
+		}
+	}
+
+	console.log("overlaps array created");
+
+	for (var i = 0; i < overlaps.length; i++) {
+		var tagGroup = overlaps[i];
+		var sharkFreq = [];
+
+		for (var k = 0; k < tagGroup.length; k++) {
+			if (sharkFreq[tagGroup[k].sharkId] == null)
+				sharkFreq[tagGroup[k].sharkId] = 1;
+			else
+				sharkFreq[tagGroup[k].sharkId]++;
+		}
+
+		var max = 0;
+		var mostSharkId = 0;
+		
+		for (var sharkId in sharkFreq) {
+			if (sharkFreq[sharkId] > max) {
+				max = sharkFreq[sharkId];
+				mostSharkId = sharkId;
+			}
+		}
+
+		console.log("Shark id " + mostSharkId + " occurs " + max);
+	}
+}
+
+var calcTagPoints = function(imageId) {
+	TaggedImage.find({
+		imageId: imageId
+	}, function(err, taggedImages) {
+		// Check if image was tagged by at least 5 people
+		if (taggedImages.length < config.min_tagged_images) {
+			console.log("Not enough tags for this image");
+			return;
+		}
+
+		// Array to hold all tagged images with its tags inside
+		var joinedTags = [];
+		// Pulled tagged counter for image tags
+		var pulledTaggedImages = 0;
+
+		// Loop through all tagged images with have the same imageId
+		for (var i = 0; i < taggedImages.length; i++) {
+			var taggedImage = taggedImages[i];
+
+			// Return all tags for image
+			// Joins matching TaggedImage(s) with Tag(s)
+			Tag.find({
+				taggedImageId: taggedImage._id
+			}, function(err, tags) {
+				pulledTaggedImages++;
+
+				// Ignore tagged images with nothing inside them
+				if (tags.length == 0) {
+					console.log("Tagged image contains 0 tags");
+				} else {
+					// Convert position + size to Vectors
+					for (var k = 0; k < tags.length; k++) {
+						tags[k].pos = new Vector(tags[k].posX, tags[k].posY);
+						tags[k].size = new Vector(tags[k].sizeX, tags[k].sizeY);
+						tags[k].imageId = taggedImage.imageId;
+						tags[k].playerId = taggedImage.playerId;
+						joinedTags.push(tags[k]);
+					}
+				}
+			
+				// Once tags are all contained in the array call search func
+				// Tags will be searched for overlap to awards points
+				if (pulledTaggedImages == taggedImages.length) {
+					searchTagOverlap(joinedTags);
+				}
+			});
+		}
+	});
 }
 
 // Connect to configured database
@@ -90,8 +201,6 @@ if (config.debug) {
 		});
 	});
 }
-else
-	app.use(morgan('combined'));
 
 // Routes
 app.get('/', function(req, res) {
@@ -386,13 +495,13 @@ app.post('/submittags', function(req, res) {
 
 			// TODO: Check if all images in current chunk have 5 tags min
 
-			// Score calculation
+			// Score calculation for tagging 1 image
 			if (req.body.tags.length > 0) {
 				player.score += config.points_per_image;
 				player.save();
 			}
 
-			taggedImage.save(function (err) {
+			taggedImage.save(function(err) {
 				if (err) {
 					return res.json({
 						success : RESPONSE_FAIL,
@@ -408,6 +517,7 @@ app.post('/submittags', function(req, res) {
 					player.save();
 				});
 
+				var tagsInserted = 0;
 				// Insert each of the tags
 				for (var i = 0; i < req.body.tags.length; i++) {
 					var tag = new Tag({
@@ -418,7 +528,13 @@ app.post('/submittags', function(req, res) {
 						sizeX: req.body.tags[i].size.x,
 						sizeY: req.body.tags[i].size.y
 					});
-					tag.save();
+					tag.save(function(err) {
+						tagsInserted++;
+
+						// Check and give out points for matching tags
+						if (tagsInserted == req.body.tags.length)
+							calcTagPoints(taggedImage.imageId);
+					});
 				}
 
 				res.json({
@@ -660,9 +776,6 @@ app.post('/leaderboard', function(req,res) {
 		Player.find({}, 
 			{ _id: 0, username: 1, score: 1 }).sort(
 			{ score : 'desc' }).limit(20).exec(function(err, leaderBoard) {
-
-
-
 			res.json({
 				success: 1,
 				leaderboard: leaderBoard

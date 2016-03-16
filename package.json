@@ -7,10 +7,11 @@
     "body-parser": "^1.15.0",
     "email-validator": "^1.0.4",
     "express": "^4.13.4",
-    "express-mongo-db": "^2.0.3",
     "mongodb": "^2.1.7",
     "mongoose": "^4.4.6",
     "morgan": "^1.7.0",
-    "randomstring": "^1.1.4"
+    "node-mailer": "^0.1.1",
+    "randomstring": "^1.1.4",
+    "victor": "^1.1.0"
   }
 }
