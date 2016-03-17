@@ -33,62 +33,51 @@ var RESPONSE_BAD_TOKEN	= -1;
 var RESPONSE_BAD_IMAGE	= -2;
 var RESPONSE_NO_IMAGES	= -3;
 
-var validToken = function(token) {
+/*
+	Returns TRUE if a token is in a valid format
+*/
+function validToken(token) {
 	// Token length always 48 chars. 
 	// First 24 chars = player object id
 	// Second 24 chars = random session key
 	return token != null && token.length == 48;
 }
 
-var tokenToObjectId = function(token) {
+/*
+	Converts token from JSON request to an ObjectId
+*/
+function tokenToObjectId(token) {
 	if (!validToken(token))
 		return null;
 	return ObjectId(token.substring(0, 24));
 }
 
-var tagsOverlap = function(tagA, tagB) {
-	var T = 50;
-	return tagA.pos.distance(tagB.pos) <= T && 
-		(tagA.pos.add(tagA.size)).distance(tagB.pos.add(tagB.size)) <= T;
-}
-
-var validObjectId = function(id) {
+/*
+	Returns TRUE if a string is a valid ObjectID
+*/
+function validObjectId(id) {
 	return id != null && id.length == 24;
 }
 
-var searchTagOverlap = function(joinedTags) {
-	var overlaps = [];
-	var oIdx = 0;
+/*
+	Returns TRUE if tags A and B are overlapping (within the threshold)
+*/
+function tagsOverlap(tagA, tagB) {
+	return tagA.pos.distance(tagB.pos) <= config.tag_overlap_threshold && 
+		(tagA.pos.add(tagA.size)).distance(tagB.pos.add(tagB.size)) 
+		<= config.tag_overlap_threshold;
+}
 
-	for (var i = 0; i < joinedTags.length; i++) {
-		var curTag = joinedTags[i];
-		var found = false;
-
-		for (var k = i + 1; k < joinedTags.length; k++) {
-			if (tagsOverlap(curTag, joinedTags[k])) {
-				console.log("tags overlap " + i + " " + k);
-				
-				if (overlaps[oIdx] == null)
-					overlaps[oIdx] = [ curTag ];
-
-				overlaps[oIdx].push(joinedTags[k]);
-				found = true;
-			}
-			else console.log("tags don't overlap " + i + " " + k);
-		}
-
-		if (found) {
-			oIdx++;
-			found = false;
-		}
-	}
-
-	console.log("overlaps array created");
-
+/*
+	Awards points if overlapping tags by different people have the same shark
+*/
+function awardPoints(overlaps) {
+	// Loop through each group of overlapping tags
 	for (var i = 0; i < overlaps.length; i++) {
 		var tagGroup = overlaps[i];
 		var sharkFreq = [];
 
+		// Calculate frequency of different types of species
 		for (var k = 0; k < tagGroup.length; k++) {
 			if (sharkFreq[tagGroup[k].sharkId] == null)
 				sharkFreq[tagGroup[k].sharkId] = 1;
@@ -96,9 +85,9 @@ var searchTagOverlap = function(joinedTags) {
 				sharkFreq[tagGroup[k].sharkId]++;
 		}
 
+		// Find the most occuring specie for this group
 		var max = 0;
-		var mostSharkId = 0;
-		
+		var mostSharkId = 0;		
 		for (var sharkId in sharkFreq) {
 			if (sharkFreq[sharkId] > max) {
 				max = sharkFreq[sharkId];
@@ -106,11 +95,74 @@ var searchTagOverlap = function(joinedTags) {
 			}
 		}
 
-		console.log("Shark id " + mostSharkId + " occurs " + max);
+		// Check if minimum marked species have been found
+		if (max >= config.min_tagged_images) {
+			// Award points
+			tagGroup.forEach(function(tag) {
+				// Only award players with correct shark
+				if (tag.sharkId == mostSharkId && !tag.awarded) {
+					// Mark tag as already awarded (points given to player)
+					Tag.update({
+						_id: ObjectId(tag._id)
+					}, { $set: {
+						awarded: true
+					}}, function(err, raw) {
+						if (err) console.log("Error awarding tag");
+					});
+
+					// Add points to player's account
+					Player.findOne({
+						_id: tag.playerId
+					}, function(err, player) {
+						if (player) {
+							player.score += config.points_per_tag;
+							player.save();
+						}
+					});
+				}
+			});
+		}
 	}
 }
 
-var calcTagPoints = function(imageId) {
+/*
+	Searches for overlapping tags and group them together
+*/
+function searchTagOverlap(joinedTags) {
+	var overlaps = [];
+	var oIdx = 0;
+
+	for (var i = 0; i < joinedTags.length; i++) {
+		var curTag = joinedTags[i];
+		var found = false;
+
+		// Compare current tag to the rest of the tags
+		for (var k = i + 1; k < joinedTags.length; k++) {
+			// Check for tag overlap
+			if (tagsOverlap(curTag, joinedTags[k])) {
+				// Insert array of overlapping arrays in the array
+				if (overlaps[oIdx] == null)
+					overlaps[oIdx] = [ curTag ];
+				overlaps[oIdx].push(joinedTags[k]);
+				// A group of overlapping tags found
+				found = true;
+			}
+		}
+
+		// Increase array index if a group was added
+		if (found) {
+			oIdx++;
+			found = false;
+		}
+	}
+
+	awardPoints(overlaps);
+}
+
+/*
+	Group tags together with tagged images for point calculation
+*/
+function calcTagPoints(imageId) {
 	TaggedImage.find({
 		imageId: imageId
 	}, function(err, taggedImages) {
@@ -126,9 +178,7 @@ var calcTagPoints = function(imageId) {
 		var pulledTaggedImages = 0;
 
 		// Loop through all tagged images with have the same imageId
-		for (var i = 0; i < taggedImages.length; i++) {
-			var taggedImage = taggedImages[i];
-
+		taggedImages.forEach(function(taggedImage) {
 			// Return all tags for image
 			// Joins matching TaggedImage(s) with Tag(s)
 			Tag.find({
@@ -156,7 +206,7 @@ var calcTagPoints = function(imageId) {
 					searchTagOverlap(joinedTags);
 				}
 			});
-		}
+		});
 	});
 }
 
@@ -526,7 +576,8 @@ app.post('/submittags', function(req, res) {
 						posX: req.body.tags[i].position.x,
 						posY: req.body.tags[i].position.y,
 						sizeX: req.body.tags[i].size.x,
-						sizeY: req.body.tags[i].size.y
+						sizeY: req.body.tags[i].size.y,
+						awarded: false
 					});
 					tag.save(function(err) {
 						tagsInserted++;

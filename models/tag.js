@@ -8,5 +8,6 @@ module.exports = mongoose.model('Tag', new Schema({
 	posX: Schema.Types.Double,
 	posY: Schema.Types.Double,
 	sizeX: Schema.Types.Double,
-	sizeY: Schema.Types.Double
+	sizeY: Schema.Types.Double,
+	awarded: Boolean
 }, { collection: collections.tags }));
