@@ -366,8 +366,6 @@ app.post('/submittags', function(req, res) {
 				ip: req.ip
 			});
 
-			// TODO: Check if all images in current chunk have 5 tags min
-
 			// Score calculation for tagging 1 image
 			if (req.body.tags.length > 0) {
 				player.score += config.points_per_image;
