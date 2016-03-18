@@ -1,9 +1,8 @@
-var MONGO_URL =	'mongodb://localhost:27017/test';
-
 var mongoClient 	= require('mongodb').MongoClient;
 var collections		= require('./collections.js');
+var config 	  		= require('./config.js');
 
-mongoClient.connect(MONGO_URL, function(err, db) {
+mongoClient.connect(config.mongo_url, function(err, db) {
 	if (err) throw err;
 
 	// players
@@ -23,16 +22,16 @@ mongoClient.connect(MONGO_URL, function(err, db) {
 	db.createCollection(collections.tags);
 
 	// images
-	/*db.collection(collections.images).drop();
+	db.collection(collections.images).drop();
 	db.createCollection(collections.images);*/
 
 	// live config
-	/*db.collection(collections.live_config).drop();
+	db.collection(collections.live_config).drop();
 	db.collection(collections.live_config).insert({
 		currentChunk: 1,
 		currentInsertChunk: 1,
 		currentInsertCount: 0
-	});*/
+	});
 
 	// tagged images
 	db.collection(collections.tagged_images).drop();

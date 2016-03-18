@@ -53,7 +53,7 @@ module.exports = {
 		the number of minimum number of matching shark species for a group of 
 		matching tags
 	*/
-	min_tagged_images: 2,
+	min_tagged_images: 5,
 
 	/*
 		Specifies the maximum of how far (in pixels) a tag can be from another 
